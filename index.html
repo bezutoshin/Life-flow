@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LifeFlow — Daily Work & Life Manager</title>
+<style>
+:root{
+  --bg:#f5f7fb;--card:#fff;--text:#182230;--muted:#687588;--line:#e5eaf1;
+  --accent:#2563eb;--danger:#dc2626;--good:#16a34a;--warn:#d97706;
+  --company:#2563eb;--outside:#7c3aed;--personal:#059669;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;background:var(--bg);color:var(--text)}
+.app{max-width:1180px;margin:auto;padding:22px}
+.topbar{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:18px}
+.brand h1{margin:0;font-size:28px}.brand p{margin:4px 0 0;color:var(--muted)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+button,.btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;background:#e8eef8;color:#1f2937}
+.primary{background:var(--accent);color:#fff}.danger{background:#fee2e2;color:#991b1b}
+.grid{display:grid;grid-template-columns:1.35fr .8fr;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 4px 20px rgba(15,23,42,.04)}
+.card h2{margin:0 0 12px;font-size:18px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}
+.stat b{display:block;font-size:24px}.stat span{color:var(--muted);font-size:13px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filter.active{background:#111827;color:white}
+.task{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;border:1px solid var(--line);border-radius:14px;padding:13px;margin:10px 0;background:#fff}
+.task.done{opacity:.55}.task.done .title{text-decoration:line-through}
+.checkbox{width:22px;height:22px;margin-top:2px}
+.title{font-weight:800}.meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:6px;color:var(--muted);font-size:12px}
+.tag{padding:3px 7px;border-radius:999px;font-weight:700}
+.company{background:#dbeafe;color:#1d4ed8}.outside{background:#ede9fe;color:#6d28d9}.personal{background:#d1fae5;color:#047857}
+.p1{background:#fee2e2;color:#b91c1c}.p2{background:#fef3c7;color:#92400e}.p3{background:#e5e7eb;color:#374151}
+.task-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.iconbtn{padding:7px 9px;font-size:12px}
+.empty{padding:28px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:12px;font-weight:800;color:#475569;margin-bottom:5px}
+input,select,textarea{width:100%;padding:10px 11px;border:1px solid #cfd8e3;border-radius:10px;background:white;font:inherit}
+textarea{min-height:72px;resize:vertical}
+.full{grid-column:1/-1}
+.section{margin-top:18px}
+.priority-list{counter-reset:item;padding:0;margin:0}
+.priority-list li{list-style:none;border-left:4px solid var(--accent);background:#f8fafc;padding:10px 12px;margin:8px 0;border-radius:8px}
+.priority-list li:before{counter-increment:item;content:counter(item);display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:50%;background:#111827;color:#fff;font-size:12px;font-weight:800;margin-right:8px}
+.note{color:var(--muted);font-size:13px;line-height:1.5}
+.today-title{display:flex;justify-content:space-between;align-items:end;gap:10px}
+.date{font-weight:800}
+@media(max-width:850px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.topbar{align-items:flex-start;flex-direction:column}.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <h1>LifeFlow</h1>
+      <p>จัดงานบริษัท งานนอก และชีวิตส่วนตัว — ให้เห็นชัดว่า “วันนี้ทำอะไรก่อน”</p>
+    </div>
+    <div class="actions">
+      <button onclick="exportData()">Export Backup</button>
+      <label class="btn" style="cursor:pointer">Import Backup<input id="importFile" type="file" accept=".json" hidden onchange="importData(event)"></label>
+      <button class="danger" onclick="clearDone()">ลบงานที่เสร็จแล้ว</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b id="todayCount">0</b><span>งานวันนี้</span></div>
+    <div class="stat"><b id="urgentCount">0</b><span>เร่งด่วน / สำคัญมาก</span></div>
+    <div class="stat"><b id="doneCount">0</b><span>เสร็จแล้ววันนี้</span></div>
+    <div class="stat"><b id="overdueCount">0</b><span>เลยกำหนด</span></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <div class="today-title">
+          <div><h2>วันนี้ควรทำอะไรก่อน</h2><div class="note">ระบบเรียงจากความสำคัญ + กำหนดเวลา + งานค้าง</div></div>
+          <div class="date" id="todayLabel"></div>
+        </div>
+        <ol id="focusList" class="priority-list"></ol>
+      </div>
+
+      <div class="card section">
+        <h2>รายการงาน</h2>
+        <div class="filters">
+          <button class="filter active" data-filter="all" onclick="setFilter('all',this)">ทั้งหมด</button>
+          <button class="filter" data-filter="company" onclick="setFilter('company',this)">งานบริษัท</button>
+          <button class="filter" data-filter="outside" onclick="setFilter('outside',this)">งานนอก</button>
+          <button class="filter" data-filter="personal" onclick="setFilter('personal',this)">ส่วนตัว</button>
+          <button class="filter" data-filter="today" onclick="setFilter('today',this)">เฉพาะวันนี้</button>
+          <button class="filter" data-filter="overdue" onclick="setFilter('overdue',this)">งานค้าง</button>
+        </div>
+        <div id="taskList"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2 id="formTitle">เพิ่มงานใหม่</h2>
+        <form id="taskForm">
+          <input type="hidden" id="taskId">
+          <div class="form-grid">
+            <div class="full">
+              <label>ชื่องาน</label>
+              <input id="title" required placeholder="เช่น ส่ง BOQ โครงการ / โทรหาลูกค้า / วิ่ง Tempo">
+            </div>
+            <div>
+              <label>หมวด</label>
+              <select id="category">
+                <option value="company">งานบริษัท</option>
+                <option value="outside">งานนอก</option>
+                <option value="personal">ส่วนตัว</option>
+              </select>
+            </div>
+            <div>
+              <label>ความสำคัญ</label>
+              <select id="priority">
+                <option value="1">P1 — สำคัญมาก</option>
+                <option value="2" selected>P2 — สำคัญ</option>
+                <option value="3">P3 — ทำเมื่อมีเวลา</option>
+              </select>
+            </div>
+            <div>
+              <label>วันที่ต้องทำ</label>
+              <input id="date" type="date">
+            </div>
+            <div>
+              <label>เวลา</label>
+              <input id="time" type="time">
+            </div>
+            <div>
+              <label>ระยะเวลาโดยประมาณ (นาที)</label>
+              <input id="duration" type="number" min="0" step="5" placeholder="30">
+            </div>
+            <div>
+              <label>สถานที่ / ลูกค้า / โปรเจกต์</label>
+              <input id="context" placeholder="เช่น Office / Site / Kave">
+            </div>
+            <div class="full">
+              <label>รายละเอียด</label>
+              <textarea id="notes" placeholder="โน้ตสั้น ๆ หรือสิ่งที่ต้องเตรียม"></textarea>
+            </div>
+            <div class="full" style="display:flex;gap:8px">
+              <button class="primary" type="submit" style="flex:1">บันทึกงาน</button>
+              <button type="button" onclick="resetForm()">ยกเลิกแก้ไข</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="card section">
+        <h2>หลักจัดลำดับของแอพ</h2>
+        <div class="note">
+          P1 จะขึ้นก่อนเสมอ จากนั้นดูงานที่เลยกำหนด งานที่ต้องทำวันนี้ และเวลานัดหมาย
+          งานที่ทำเสร็จแล้วจะถูกย้ายลงล่าง เพื่อให้หน้า “วันนี้” ไม่รก
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY='lifeflow_tasks_v1';
+let tasks=JSON.parse(localStorage.getItem(KEY)||'[]');
+let currentFilter='all';
+
+function localDateStr(d=new Date()){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(tasks))}
+function categoryLabel(c){return c==='company'?'งานบริษัท':c==='outside'?'งานนอก':'ส่วนตัว'}
+function priorityLabel(p){return p==1?'P1 สำคัญมาก':p==2?'P2 สำคัญ':'P3'}
+function dueScore(t){
+  const today=localDateStr();
+  let s=Number(t.priority)*1000;
+  if(!t.done){
+    if(t.date && t.date<today) s-=500;
+    else if(t.date===today) s-=300;
+    else if(!t.date) s+=100;
+  } else s+=5000;
+  if(t.date) s += new Date(t.date+'T00:00:00').getTime()/1e13;
+  if(t.time) s += parseInt(t.time.replace(':',''))/10000;
+  return s;
+}
+function sorted(){return [...tasks].sort((a,b)=>dueScore(a)-dueScore(b))}
+function render(){
+  const today=localDateStr();
+  document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const todayTasks=tasks.filter(t=>t.date===today && !t.done);
+  document.getElementById('todayCount').textContent=todayTasks.length;
+  document.getElementById('urgentCount').textContent=tasks.filter(t=>!t.done && Number(t.priority)===1 && (!t.date || t.date<=today)).length;
+  document.getElementById('doneCount').textContent=tasks.filter(t=>t.done && t.completedDate===today).length;
+  document.getElementById('overdueCount').textContent=tasks.filter(t=>!t.done && t.date && t.date<today).length;
+
+  let focus=sorted().filter(t=>!t.done && (!t.date || t.date<=today)).slice(0,5);
+  const focusEl=document.getElementById('focusList');
+  focusEl.innerHTML=focus.length?focus.map(t=>`<li><b>${esc(t.title)}</b> <span class="tag ${t.category}">${categoryLabel(t.category)}</span><div class="meta">${t.time?`⏰ ${t.time}`:''}${t.duration?` · ${t.duration} นาที`:''}${t.context?` · ${esc(t.context)}`:''}</div></li>`).join(''):'<div class="empty">ยังไม่มีงานเร่งด่วนสำหรับวันนี้ 🎉</div>';
+
+  let list=sorted();
+  if(currentFilter==='company'||currentFilter==='outside'||currentFilter==='personal') list=list.filter(t=>t.category===currentFilter);
+  if(currentFilter==='today') list=list.filter(t=>t.date===today);
+  if(currentFilter==='overdue') list=list.filter(t=>!t.done && t.date && t.date<today);
+
+  const el=document.getElementById('taskList');
+  if(!list.length){el.innerHTML='<div class="empty">ยังไม่มีรายการในหมวดนี้</div>';return}
+  el.innerHTML=list.map(t=>`
+    <div class="task ${t.done?'done':''}">
+      <input class="checkbox" type="checkbox" ${t.done?'checked':''} onchange="toggleDone('${t.id}')">
+      <div>
+        <div class="title">${esc(t.title)}</div>
+        <div class="meta">
+          <span class="tag ${t.category}">${categoryLabel(t.category)}</span>
+          <span class="tag p${t.priority}">${priorityLabel(t.priority)}</span>
+          ${t.date?`<span>📅 ${formatDate(t.date)}</span>`:''}
+          ${t.time?`<span>⏰ ${t.time}</span>`:''}
+          ${t.duration?`<span>⏱ ${t.duration} นาที</span>`:''}
+          ${t.context?`<span>📍 ${esc(t.context)}</span>`:''}
+        </div>
+        ${t.notes?`<div class="note" style="margin-top:7px">${esc(t.notes)}</div>`:''}
+      </div>
+      <div class="task-actions">
+        <button class="iconbtn" onclick="editTask('${t.id}')">แก้ไข</button>
+        <button class="iconbtn" onclick="moveTomorrow('${t.id}')">พรุ่งนี้</button>
+        <button class="iconbtn danger" onclick="deleteTask('${t.id}')">ลบ</button>
+      </div>
+    </div>`).join('');
+}
+function formatDate(s){return new Date(s+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short'})}
+function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function setFilter(f,btn){currentFilter=f;document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));btn.classList.add('active');render()}
+function toggleDone(id){let t=tasks.find(x=>x.id===id);t.done=!t.done;t.completedDate=t.done?localDateStr():null;save();render()}
+function deleteTask(id){if(confirm('ลบงานนี้หรือไม่?')){tasks=tasks.filter(x=>x.id!==id);save();render()}}
+function moveTomorrow(id){let t=tasks.find(x=>x.id===id);let d=new Date();d.setDate(d.getDate()+1);t.date=localDateStr(d);t.done=false;t.completedDate=null;save();render()}
+function editTask(id){
+  const t=tasks.find(x=>x.id===id);
+  ['taskId','title','category','priority','date','time','duration','context','notes'].forEach(k=>{
+    document.getElementById(k).value=t[k]??'';
+  });
+  document.getElementById('formTitle').textContent='แก้ไขงาน';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function resetForm(){
+  document.getElementById('taskForm').reset();document.getElementById('taskId').value='';
+  document.getElementById('priority').value='2';document.getElementById('date').value=localDateStr();
+  document.getElementById('formTitle').textContent='เพิ่มงานใหม่';
+}
+document.getElementById('taskForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const id=document.getElementById('taskId').value || (Date.now().toString(36)+Math.random().toString(36).slice(2));
+  const old=tasks.find(t=>t.id===id);
+  const obj={
+    id,title:document.getElementById('title').value.trim(),
+    category:document.getElementById('category').value,
+    priority:Number(document.getElementById('priority').value),
+    date:document.getElementById('date').value,
+    time:document.getElementById('time').value,
+    duration:document.getElementById('duration').value,
+    context:document.getElementById('context').value.trim(),
+    notes:document.getElementById('notes').value.trim(),
+    done:old?.done||false,completedDate:old?.completedDate||null
+  };
+  if(old) tasks=tasks.map(t=>t.id===id?obj:t); else tasks.push(obj);
+  save();resetForm();render();
+});
+function clearDone(){if(confirm('ลบงานที่ทำเสร็จแล้วทั้งหมดหรือไม่?')){tasks=tasks.filter(t=>!t.done);save();render()}}
+function exportData(){
+  const blob=new Blob([JSON.stringify({version:1,exportedAt:new Date().toISOString(),tasks},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='LifeFlow-backup.json';a.click();URL.revokeObjectURL(a.href);
+}
+function importData(e){
+  const file=e.target.files[0]; if(!file)return;
+  const r=new FileReader();r.onload=()=>{
+    try{
+      const data=JSON.parse(r.result); const arr=Array.isArray(data)?data:data.tasks;
+      if(!Array.isArray(arr))throw new Error();
+      tasks=arr;save();render();alert('นำเข้าข้อมูลเรียบร้อย');
+    }catch{alert('ไฟล์ Backup ไม่ถูกต้อง')}
+  };r.readAsText(file);e.target.value='';
+}
+resetForm();render();
+</script>
+</body>
+</html>
